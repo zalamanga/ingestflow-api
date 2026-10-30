@@ -4,6 +4,10 @@ Import a CSV inventory file, return a durable job ID, and let a separate Python 
 
 The project demonstrates a REST API, PostgreSQL transactions, concurrent queue claims, lease recovery after a worker crash, and tenant boundaries. It uses synthetic inventory records. It has no dashboard or external storage service.
 
+![IngestFlow OpenAPI reference](docs/screenshots/openapi-reference.png)
+
+This image renders the committed OpenAPI contract with Swagger UI. It is API documentation, not a business dashboard or a recorded response from a running server.
+
 ## Stack
 
 Python 3.13, FastAPI 0.162.0, Psycopg 3.3.6, PostgreSQL 17, Uvicorn 0.54.0, pytest 9.2.0, and Docker Compose. Runtime dependencies are pinned in `requirements.txt`. Test dependencies are in `requirements-dev.txt`.
