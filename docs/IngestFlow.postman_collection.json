@@ -1,0 +1,66 @@
+{
+  "info": {
+    "name": "IngestFlow API",
+    "description": "Local synthetic tenant CSV import API. Set alphaKey and betaKey privately; committed variables are placeholders. Run a separate worker before expecting SUCCEEDED. The submit request stores importId for subsequent requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://127.0.0.1:8100"},
+    {"key": "alphaKey", "value": "REPLACE_WITH_PRIVATE_ALPHA_KEY"},
+    {"key": "betaKey", "value": "REPLACE_WITH_PRIVATE_BETA_KEY"},
+    {"key": "idempotencyKey", "value": "postman-synthetic-001"},
+    {"key": "importId", "value": "REPLACE_AFTER_SUBMIT"}
+  ],
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{alphaKey}}", "type": "string"}]},
+  "item": [
+    {
+      "name": "Health",
+      "request": {"method": "GET", "auth": {"type": "noauth"}, "url": "{{baseUrl}}/health"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Database ready', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "Submit or replay the same CSV",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/v1/imports",
+        "header": [{"key": "Content-Type", "value": "text/csv"}, {"key": "Idempotency-Key", "value": "{{idempotencyKey}}"}],
+        "body": {"mode": "raw", "raw": "sku,name,quantity\nPEN-001,Synthetic blue pen,12\nNOTEBOOK-001,Synthetic notebook,5\n"}
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Accepted or replayed', () => pm.response.to.have.status(202));", "if (pm.response.code === 202) pm.collectionVariables.set('importId', pm.response.json().id);", "pm.test('Location is present', () => pm.expect(pm.response.headers.get('Location')).to.include('/v1/imports/'));"]}}]
+    },
+    {
+      "name": "Read import",
+      "request": {"method": "GET", "url": "{{baseUrl}}/v1/imports/{{importId}}"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Owned import readable', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "Read validation report",
+      "request": {"method": "GET", "url": "{{baseUrl}}/v1/imports/{{importId}}/errors"}
+    },
+    {
+      "name": "Read lifecycle events",
+      "request": {"method": "GET", "url": "{{baseUrl}}/v1/imports/{{importId}}/events"}
+    },
+    {
+      "name": "List jobs with cursor",
+      "request": {"method": "GET", "url": "{{baseUrl}}/v1/imports?after=0&limit=20"}
+    },
+    {
+      "name": "Read committed record effects",
+      "request": {"method": "GET", "url": "{{baseUrl}}/v1/records?limit=20"}
+    },
+    {
+      "name": "Other tenant cannot read this import",
+      "request": {
+        "method": "GET", "url": "{{baseUrl}}/v1/imports/{{importId}}",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{betaKey}}", "type": "string"}]}
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Tenant boundary returns 404', () => pm.response.to.have.status(404));"]}}]
+    },
+    {
+      "name": "Cancel before worker apply (or observe terminal conflict)",
+      "request": {"method": "POST", "url": "{{baseUrl}}/v1/imports/{{importId}}/cancel"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Cancellation outcome is explicit', () => pm.expect([200, 409]).to.include(pm.response.code));"]}}]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+sku,name,quantity
+PEN-001,This valid row will not be applied,12
+NOTEBOOK-001,Negative quantity,-3
+bad sku,Invalid SKU,8

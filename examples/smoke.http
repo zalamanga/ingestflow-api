@@ -1,0 +1,40 @@
+@baseUrl = http://127.0.0.1:8100
+@tenantKey = REPLACE_WITH_PRIVATE_ALPHA_KEY
+@jobId = REPLACE_WITH_RESPONSE_ID
+
+### Database health (no key required)
+GET {{baseUrl}}/health
+
+### Submit CSV. Reuse this key only with exactly the same bytes.
+POST {{baseUrl}}/v1/imports
+Authorization: Bearer {{tenantKey}}
+Content-Type: text/csv
+Idempotency-Key: demo-import-001
+
+sku,name,quantity
+PEN-001,Synthetic blue pen,12
+NOTEBOOK-001,Synthetic notebook,5
+
+### Job state
+GET {{baseUrl}}/v1/imports/{{jobId}}
+Authorization: Bearer {{tenantKey}}
+
+### Validation errors (maximum 50 entries)
+GET {{baseUrl}}/v1/imports/{{jobId}}/errors
+Authorization: Bearer {{tenantKey}}
+
+### Durable state transitions
+GET {{baseUrl}}/v1/imports/{{jobId}}/events
+Authorization: Bearer {{tenantKey}}
+
+### First job page. Feed next_cursor into after.
+GET {{baseUrl}}/v1/imports?limit=20&after=0
+Authorization: Bearer {{tenantKey}}
+
+### Current record effects
+GET {{baseUrl}}/v1/records?limit=20
+Authorization: Bearer {{tenantKey}}
+
+### Cancellation may return 409 if the worker already committed
+POST {{baseUrl}}/v1/imports/{{jobId}}/cancel
+Authorization: Bearer {{tenantKey}}

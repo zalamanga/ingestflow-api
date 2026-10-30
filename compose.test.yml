@@ -1,0 +1,35 @@
+name: ingestflow-test
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: ingestflow_test
+      POSTGRES_USER: ingestflow_test
+      POSTGRES_PASSWORD: ${INGESTFLOW_TEST_DB_PASSWORD:?Set a temporary test password}
+    ports: ["127.0.0.1:5455:5432"]
+    tmpfs:
+      - /var/lib/postgresql/data:size=256m,mode=0700,uid=999,gid=999
+    mem_limit: 256m
+    shm_size: 64m
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=30]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U ingestflow_test -d ingestflow_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  tests:
+    image: ingestflow-api:test
+    build:
+      context: .
+      target: test
+    environment:
+      INGESTFLOW_TEST_DB_URL: postgresql://ingestflow_test:${INGESTFLOW_TEST_DB_PASSWORD:?Set a temporary test password}@db:5432/ingestflow_test
+    depends_on:
+      db: {condition: service_healthy}
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 256m

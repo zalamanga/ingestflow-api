@@ -1,0 +1,67 @@
+name: ingestflow
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://ingestflow:${POSTGRES_PASSWORD:?Run scripts/Init.ps1 first}@db:5432/ingestflow
+  TENANT_ALPHA_KEY_SHA256: ${TENANT_ALPHA_KEY_SHA256:?Run scripts/Init.ps1 first}
+  TENANT_BETA_KEY_SHA256: ${TENANT_BETA_KEY_SHA256:?Run scripts/Init.ps1 first}
+
+x-app: &app
+  image: ingestflow-api:local
+  build:
+    context: .
+    target: runtime
+  environment: *app-env
+  read_only: true
+  tmpfs:
+    - /tmp:size=32m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 64
+  mem_limit: 192m
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: ingestflow
+      POSTGRES_USER: ingestflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/Init.ps1 first}
+    ports: ["127.0.0.1:5454:5432"]
+    volumes: ["ingestflow_pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U ingestflow -d ingestflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 256m
+    shm_size: 64m
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=50]
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: [python, -m, ingestflow.migrate]
+    restart: "no"
+    depends_on:
+      db: {condition: service_healthy}
+
+  api:
+    <<: *app
+    ports: ["127.0.0.1:8100:8100"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=8).read()"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+
+  worker:
+    <<: *app
+    command: [python, -m, ingestflow.worker]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+volumes:
+  ingestflow_pgdata:
